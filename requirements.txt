@@ -1,0 +1,16 @@
+numpy
+pandas
+pyarrow
+scipy
+statsmodels
+scikit-learn
+matplotlib
+openpyxl
+xlrd
+geopandas
+libpysal
+esda
+ruptures
+xgboost
+shap
+torch
