@@ -156,11 +156,14 @@ def main():
     ax.set_xlim(1998, 2024)
 
     # binscatter of the premium against consolidation after removing county
-    # and year effects (Frisch-Waugh), pre-2017 regime only
+    # and year effects (Frisch-Waugh), pre-2017 regime only. The sample
+    # filter matches the fixed-effects regression above (>=3 observations
+    # per county), so by Frisch-Waugh-Lovell the slope equals the Table
+    # estimate exactly.
     ax = axes[1, 1]
     d = panel[(panel.trade == "electrical") & panel.sh_lg.notna()
               & (panel.year <= 2016)].copy()
-    d = d[d.groupby("fips").fips.transform("size") >= 5]
+    d = d[d.groupby("fips").fips.transform("size") >= 3]
 
     def demean2(s):
         v = s.values.astype(float)
@@ -172,7 +175,6 @@ def main():
         return v
 
     d["x"], d["y"] = demean2(d.sh_lg), demean2(d.premium)
-    d = d[d.x.between(*np.percentile(d.x, [1, 99]))]
 
     fw = smf.ols("y ~ x", data=d).fit(cov_type="cluster",
                                       cov_kwds={"groups": d.state})
@@ -184,8 +186,9 @@ def main():
     save_table(pd.DataFrame(reg_rows).set_index(["trade", "era"]),
                "tab_pay_premium_reg")
 
-    d["bin"] = pd.qcut(d.x, 20, duplicates="drop")
-    b = d.groupby("bin", observed=True).agg(x=("x", "mean"), y=("y", "mean"))
+    w = d[d.x.between(*np.percentile(d.x, [1, 99]))].copy()
+    w["bin"] = pd.qcut(w.x, 20, duplicates="drop")
+    b = w.groupby("bin", observed=True).agg(x=("x", "mean"), y=("y", "mean"))
     ax.scatter(b.x * 100, b.y * 100, s=24, color=C_EL, zorder=3)
     xs = np.linspace(d.x.min(), d.x.max(), 50)
     ax.plot(xs * 100, (fw.params["Intercept"] + beta * xs) * 100,

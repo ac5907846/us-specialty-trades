@@ -96,6 +96,11 @@ def fit(y, x, Z, cidx, tidx, nC, nT, device, steps=1500, seed=0, verbose=False):
 
 
 def cluster_bootstrap(d, B, device, steps, seed=0):
+    """Draw states with replacement; each drawn state copy is relabeled as
+    a DISTINCT cluster (fips suffixed per drawn slot). Sharing one county
+    effect (and one shrinkage-penalty entry) across duplicated copies
+    biases every resample's b_sig downward and produces percentile
+    intervals that are not centred on the point estimate."""
     rng = np.random.default_rng(seed)
     states = d.state.unique()
     idx_by_state = {s: np.flatnonzero(d.state.values == s) for s in states}
@@ -103,8 +108,12 @@ def cluster_bootstrap(d, B, device, steps, seed=0):
     t0 = time.time()
     for b in range(B):
         pick = rng.choice(states, size=len(states), replace=True)
-        rows = np.concatenate([idx_by_state[s] for s in pick])
-        db = d.iloc[rows].reset_index(drop=True)
+        parts = []
+        for j, s_ in enumerate(pick):
+            dd = d.iloc[idx_by_state[s_]].copy()
+            dd["fips"] = dd.fips + f"~{j}"
+            parts.append(dd)
+        db = pd.concat(parts, ignore_index=True)
         try:
             P = fit(*design(db), device=device, steps=steps, seed=seed + b + 1)
             out.append((float(P["b_mu"][0]), float(P["b_sig"][0])))
